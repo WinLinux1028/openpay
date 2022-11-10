@@ -7,11 +7,16 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1"
+serde_json = "1"
 
 [dependencies.axum]
-version = "0.5"
-features = ["headers", "multipart", "ws"]
+version = "0.6.0-rc"
+features = ["headers", "multipart", "ws", "http2"]
 
 [dependencies.tokio]
 version = "1"
 features = ["full"]
+
+[dependencies.serde]
+version = "1"
+features = ["derive", "unstable", "alloc", "rc"]

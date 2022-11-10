@@ -1,37 +1,39 @@
-use axum::{handler::Handler, http::StatusCode, response, routing};
+mod api;
+
+use axum::{http::StatusCode, routing::Router};
+use tokio::{fs, io::AsyncReadExt};
 
 #[tokio::main]
 async fn main() {
-    let base = routing::any(method_not_allowed);
+    let mut config = String::new();
+    fs::File::open("./config.json")
+        .await
+        .unwrap()
+        .read_to_string(&mut config)
+        .await
+        .unwrap();
+    let config: Config = serde_json::from_str(&config).unwrap();
 
-    let frontend = routing::Router::new().route("/", base.clone().get(hello_world));
+    let root = Router::new()
+        .fallback(unusual_access)
+        .nest("/api/", api::router(config.clone()).await);
 
-    let api = routing::Router::new();
-
-    let app = routing::Router::new()
-        .fallback(not_found.into_service())
-        .route("/", routing::any(redirect_to_frontend))
-        .nest("/api", api)
-        .nest("/frontend", frontend);
-
-    axum::Server::bind(&"127.0.0.1:3000".parse().unwrap())
-        .serve(app.into_make_service())
+    axum::Server::bind(&config.listen)
+        .tcp_nodelay(true)
+        .serve(root.into_make_service())
         .await
         .unwrap();
 }
 
-async fn hello_world() -> response::Html<&'static str> {
-    response::Html("Hello World!")
+async fn unusual_access() -> (StatusCode, &'static str) {
+    (
+        StatusCode::FORBIDDEN,
+        "APIサーバーに来ないはずのパスへのアクセスが発生しました\nリバースプロキシの設定を確認してください",
+    )
 }
 
-async fn not_found() -> (StatusCode, &'static str) {
-    (StatusCode::NOT_FOUND, "404 Not Found")
-}
-
-async fn method_not_allowed() -> (StatusCode, &'static str) {
-    (StatusCode::METHOD_NOT_ALLOWED, "405 Method Not Allowed")
-}
-
-async fn redirect_to_frontend() -> response::Redirect {
-    response::Redirect::permanent("/frontend")
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct Config {
+    listen: std::net::SocketAddr,
+    host: String,
 }
