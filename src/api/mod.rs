@@ -1,13 +1,11 @@
-use crate::Config;
+use crate::{
+    state::{ArcSharedState, SharedState},
+    Config,
+};
 
 use std::sync::Arc;
 
-use axum::{
-    body, extract,
-    http::StatusCode,
-    response,
-    routing::{MethodRouter, Router},
-};
+use axum::{body, extract, response, routing::Router};
 
 pub async fn router<B>(config: Config) -> Router<Arc<SharedState>, B>
 where
@@ -15,12 +13,10 @@ where
 {
     let state = SharedState::new(config).await;
 
-    let base = MethodRouter::new().fallback(method_not_allowed);
-
-    Router::with_state(Arc::clone(&state))
-        .fallback(not_found)
-        .route("/a", base.clone().get(hello_world))
-        .route("/b", base.get(hello_world2))
+    state
+        .router()
+        .route("/a", state.method().get(hello_world))
+        .route("/b", state.method().get(hello_world2))
 }
 
 async fn hello_world(
@@ -31,22 +27,4 @@ async fn hello_world(
 
 async fn hello_world2() -> &'static str {
     "Hello World!"
-}
-
-async fn not_found() -> (StatusCode, &'static str) {
-    (StatusCode::NOT_FOUND, "404 Not Found")
-}
-
-async fn method_not_allowed() -> (StatusCode, &'static str) {
-    (StatusCode::METHOD_NOT_ALLOWED, "405 Method Not Allowed")
-}
-
-pub struct SharedState {
-    config: Config,
-}
-
-impl SharedState {
-    async fn new(config: Config) -> Arc<SharedState> {
-        Arc::new(SharedState { config })
-    }
 }
