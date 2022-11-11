@@ -15,16 +15,17 @@ where
 
     state
         .router()
-        .route("/a", state.method().get(hello_world))
-        .route("/b", state.method().get(hello_world2))
+        .route("/a/:name", state.method().get(hello_world))
+        .route("/b/:id", state.method().get(hello_world2))
 }
 
 async fn hello_world(
     extract::State(state): extract::State<Arc<SharedState>>,
+    extract::Path(name): extract::Path<String>,
 ) -> response::Html<String> {
-    response::Html(format!("Hello World!, from {}", &state.config.host))
+    response::Html(format!("Hello {}, from {}", name, &state.config.host))
 }
 
-async fn hello_world2() -> &'static str {
-    "Hello World!"
+async fn hello_world2(extract::Path(id): extract::Path<u64>) -> String {
+    format!("Hello {}", id)
 }
