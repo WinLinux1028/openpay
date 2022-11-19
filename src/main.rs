@@ -47,7 +47,7 @@ pub struct Config {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct TwitterConfig {
+struct TwitterConfig {
     client_id: String,
     client_secret: String,
 }

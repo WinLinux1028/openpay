@@ -117,16 +117,18 @@ pub struct TwitterAuth {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct TwitterToken {
+struct TwitterToken {
     access_token: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct TwitterData<T> {
+struct TwitterData<T> {
     data: T,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct TwitterID {
     id: String,
+    name: String,
+    username: String,
 }
