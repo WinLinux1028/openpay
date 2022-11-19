@@ -1,8 +1,12 @@
 mod api;
 mod state;
 
+use std::sync::Arc;
+
 use axum::{http::StatusCode, routing::Router};
 use tokio::{fs, io::AsyncReadExt};
+
+use crate::state::SharedState;
 
 #[tokio::main]
 async fn main() {
@@ -14,12 +18,14 @@ async fn main() {
         .await
         .unwrap();
     let config: Config = serde_json::from_str(&config).unwrap();
+    let state = SharedState::new(config).await;
 
     let root = Router::new()
+        .nest("/api", api::router().await)
         .fallback(unusual_access)
-        .nest("/api/", api::router(config.clone()).await);
+        .with_state(Arc::clone(&state));
 
-    axum::Server::bind(&config.listen)
+    axum::Server::bind(&state.config.listen)
         .tcp_nodelay(true)
         .serve(root.into_make_service())
         .await
