@@ -1,23 +1,57 @@
-use crate::Config;
+use rand::Rng;
+use tokio::sync::Mutex;
 
-use std::sync::Arc;
+use crate::{Config, TwitterConfig};
+
+use std::{collections::HashMap, sync::Arc};
 
 pub struct SharedState {
     pub config: Config,
-    pub twitter_auth: Option<String>,
+    pub twitter: Option<TwitterState>,
 }
 
 impl SharedState {
     pub async fn new(config: Config) -> Arc<Self> {
-        let mut twitter_auth = None;
-        if let Some(twitter) = &config.twitter {
-            let twitter = format!("{}:{}", twitter.client_id, twitter.client_secret);
-            twitter_auth = Some(base64::encode(twitter));
+        let twitter = config.twitter.as_ref().map(TwitterState::new);
+
+        Arc::new(Self { config, twitter })
+    }
+
+    pub fn random_string(&self, len: usize) -> String {
+        let mut result = String::new();
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..len {
+            let mut num: u32 = rng.gen_range(0..62);
+            if num < 10 {
+                num += 0x30;
+            } else if num < 36 {
+                num += 0x41 - 10;
+            } else {
+                num += 0x61 - 36;
+            }
+
+            #[allow(clippy::transmute_int_to_char)]
+            result.push(unsafe { std::mem::transmute(num) });
         }
 
-        Arc::new(SharedState {
-            config,
-            twitter_auth,
-        })
+        result
+    }
+}
+
+pub struct TwitterState {
+    pub basic_auth: String,
+    pub wait: Mutex<HashMap<String, (String, tokio::task::JoinHandle<()>)>>,
+}
+
+impl TwitterState {
+    fn new(config: &TwitterConfig) -> Self {
+        let mut basic_auth = format!("{}:{}", config.client_id, config.client_secret);
+        basic_auth = base64::encode(&basic_auth);
+
+        Self {
+            basic_auth,
+            wait: Mutex::const_new(HashMap::new()),
+        }
     }
 }
