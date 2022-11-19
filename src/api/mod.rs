@@ -4,7 +4,8 @@ use crate::state::SharedState;
 
 use axum::{
     body,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
+    response::{self, IntoResponse},
     routing::{MethodRouter, Router},
 };
 use std::sync::Arc;
@@ -30,4 +31,16 @@ async fn not_found() -> (StatusCode, &'static str) {
 }
 async fn method_not_allowed() -> (StatusCode, &'static str) {
     (StatusCode::METHOD_NOT_ALLOWED, "405 Method Not Allowed")
+}
+
+fn internal_server_error() -> response::Response {
+    let mut headers = HeaderMap::new();
+    headers.insert("Cache-Control", "no-store".parse().unwrap());
+
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        headers,
+        "500 Internal Server Error",
+    )
+        .into_response()
 }

@@ -1,3 +1,4 @@
+use axum::http::HeaderMap;
 use rand::Rng;
 use tokio::sync::Mutex;
 
@@ -36,6 +37,13 @@ impl SharedState {
         }
 
         result
+    }
+
+    pub fn no_cache(&self) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("Cache-Control", "no-store".parse().unwrap());
+
+        headers
     }
 }
 
