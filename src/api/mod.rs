@@ -1,31 +1,34 @@
-use crate::{
-    state::{ArcSharedState, SharedState},
-    Config,
-};
+mod handlers;
 
+use crate::{api::handlers::*, state::SharedState};
+
+use axum::{
+    body,
+    http::StatusCode,
+    routing::{MethodRouter, Router},
+};
 use std::sync::Arc;
 
-use axum::{body, extract, response, routing::Router};
-
-pub async fn router<B>(config: Config) -> Router<Arc<SharedState>, B>
+pub async fn router<B>() -> Router<Arc<SharedState>, B>
 where
     B: body::HttpBody + Send + 'static,
 {
-    let state = SharedState::new(config).await;
-
-    state
-        .router()
-        .route("/a/:name", state.method().get(hello_world))
-        .route("/b/:id", state.method().get(hello_world2))
+    Router::new()
+        .fallback(not_found)
+        .route("/a/:name", method().get(hello_world))
+        .route("/b/:id", method().get(hello_world2))
 }
 
-async fn hello_world(
-    extract::State(state): extract::State<Arc<SharedState>>,
-    extract::Path(name): extract::Path<String>,
-) -> response::Html<String> {
-    response::Html(format!("Hello {}, from {}", name, &state.config.host))
+pub fn method<B>() -> MethodRouter<Arc<SharedState>, B>
+where
+    B: body::HttpBody + Send + 'static,
+{
+    MethodRouter::new().fallback(method_not_allowed)
 }
 
-async fn hello_world2(extract::Path(id): extract::Path<u64>) -> String {
-    format!("Hello {}", id)
+async fn not_found() -> (StatusCode, &'static str) {
+    (StatusCode::NOT_FOUND, "404 Not Found")
+}
+async fn method_not_allowed() -> (StatusCode, &'static str) {
+    (StatusCode::METHOD_NOT_ALLOWED, "405 Method Not Allowed")
 }
