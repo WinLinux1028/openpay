@@ -3,7 +3,7 @@ use tokio::sync::Mutex;
 
 use crate::{Config, TwitterConfig};
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 pub struct SharedState {
     pub config: Config,
@@ -41,7 +41,7 @@ impl SharedState {
 
 pub struct TwitterState {
     pub basic_auth: String,
-    pub wait: Mutex<HashMap<String, (String, tokio::task::JoinHandle<()>)>>,
+    wait: Mutex<HashMap<String, (String, tokio::task::JoinHandle<()>)>>,
 }
 
 impl TwitterState {
@@ -53,5 +53,40 @@ impl TwitterState {
             basic_auth,
             wait: Mutex::const_new(HashMap::new()),
         }
+    }
+
+    pub async fn wait_add(
+        &self,
+        state: &Arc<SharedState>,
+        state_id: String,
+        code_verifier: String,
+    ) {
+        let state = Arc::clone(state);
+        let state_id2 = state_id.clone();
+        let handle = tokio::spawn(async move {
+            let state_id = state_id2;
+            tokio::time::sleep(Duration::from_secs(3 * 10)).await;
+
+            state
+                .twitter
+                .as_ref()
+                .unwrap()
+                .wait
+                .lock()
+                .await
+                .remove(&state_id);
+        });
+
+        self.wait
+            .lock()
+            .await
+            .insert(state_id, (code_verifier, handle));
+    }
+
+    pub async fn wait_get(&self, state_id: String) -> Option<String> {
+        let wait = self.wait.lock().await.remove(&state_id)?;
+        wait.1.abort();
+
+        Some(wait.0)
     }
 }
