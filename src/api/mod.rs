@@ -34,13 +34,17 @@ async fn method_not_allowed() -> (StatusCode, &'static str) {
 }
 
 fn internal_server_error() -> response::Response {
-    let mut headers = HeaderMap::new();
-    headers.insert("Cache-Control", "no-store".parse().unwrap());
-
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        headers,
+        no_cache(),
         "500 Internal Server Error",
     )
         .into_response()
+}
+
+fn no_cache() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert("Cache-Control", "no-store".parse().unwrap());
+
+    headers
 }

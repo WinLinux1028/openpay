@@ -7,7 +7,10 @@ use axum::{
 };
 use sha2::Digest;
 
-use crate::{api::internal_server_error, state::SharedState};
+use crate::{
+    api::{internal_server_error, no_cache},
+    state::SharedState,
+};
 
 pub async fn twitter_login(extract::State(state): extract::State<Arc<SharedState>>) -> Response {
     let twitter = match &state.twitter {
@@ -32,7 +35,7 @@ pub async fn twitter_login(extract::State(state): extract::State<Arc<SharedState
     let code_challenge = base64::encode_config(code_challenge, base64::URL_SAFE_NO_PAD);
 
     (
-        state.no_cache(),
+        no_cache(),
         response::Redirect::temporary(
             &format!("https://twitter.com/i/oauth2/authorize?response_type=code&code_challenge_method=s256&scope=tweet.read%20users.read&client_id={}&redirect_uri=https://{}/api/account/twitter_auth&state={}&code_challenge={}", 
                 &state.config.twitter.as_ref().unwrap().client_id,
@@ -55,7 +58,7 @@ pub async fn twitter_auth(
     // 事前に保存しておいたcode_verifierをstateで取得
     let code_verifier = match twitter.wait_get(oauth.state).await {
         Some(s) => s,
-        None => return (StatusCode::NOT_FOUND, state.no_cache(), "Invalid state").into_response(),
+        None => return (StatusCode::NOT_FOUND, no_cache(), "Invalid state").into_response(),
     };
 
     // アカウントを操作するためのtokenを取得
@@ -98,16 +101,13 @@ pub async fn twitter_auth(
         Err(_) => return internal_server_error(),
     };
 
-    let user_id: TwitterData = match user_id.json().await {
+    let user_id: TwitterData<TwitterID> = match user_id.json().await {
         Ok(o) => o,
         Err(_) => return internal_server_error(),
     };
-    let user_id = match user_id.data.get("id") {
-        Some(s) => s,
-        None => return internal_server_error(),
-    };
+    let user_id = user_id.data.id;
 
-    (state.no_cache(), user_id.clone()).into_response()
+    (no_cache(), user_id).into_response()
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -122,6 +122,11 @@ pub struct TwitterToken {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct TwitterData {
-    data: HashMap<String, String>,
+pub struct TwitterData<T> {
+    data: T,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct TwitterID {
+    id: String,
 }
