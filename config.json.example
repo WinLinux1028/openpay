@@ -1,0 +1,8 @@
+{
+    "listen": "127.0.0.1:3000",
+    "host": "example.com",
+    "twitter": {
+        "client_id": "OAuth 2.0 Client ID",
+        "client_secret": "OAuth 2.0 Client Secret"
+    }
+}

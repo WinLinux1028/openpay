@@ -21,7 +21,7 @@ async fn main() {
     let state = SharedState::new(config).await;
 
     let root = Router::new()
-        .nest("/api", api::router().await)
+        .nest("/api/", api::router().await)
         .fallback(unusual_access)
         .with_state(Arc::clone(&state));
 
@@ -39,8 +39,15 @@ async fn unusual_access() -> (StatusCode, &'static str) {
     )
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Config {
     listen: std::net::SocketAddr,
     host: String,
+    twitter: Option<TwitterConfig>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct TwitterConfig {
+    client_id: String,
+    client_secret: String,
 }

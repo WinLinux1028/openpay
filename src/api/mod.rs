@@ -1,6 +1,6 @@
-mod handlers;
+mod account;
 
-use crate::{api::handlers::*, state::SharedState};
+use crate::state::SharedState;
 
 use axum::{
     body,
@@ -15,8 +15,7 @@ where
 {
     Router::new()
         .fallback(not_found)
-        .route("/a/:name", method().get(hello_world))
-        .route("/b/:id", method().get(hello_world2))
+        .nest("/account", account::router().await)
 }
 
 pub fn method<B>() -> MethodRouter<Arc<SharedState>, B>
