@@ -1,56 +1,55 @@
-use rand::Rng;
+use oauth2::{
+    AuthType, AuthUrl, ClientId, ClientSecret, CsrfToken, PkceCodeVerifier, RedirectUrl,
+    RevocationUrl, TokenUrl,
+};
 use tokio::sync::Mutex;
 
-use crate::{Config, TwitterConfig};
+use crate::Config;
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 pub struct SharedState {
     pub config: Config,
-    pub twitter: Option<TwitterState>,
+    pub oauth: OauthState,
 }
 
 impl SharedState {
     pub async fn new(config: Config) -> Arc<Self> {
-        let twitter = config.twitter.as_ref().map(TwitterState::new);
+        let oauth = OauthState::new(&config);
 
-        Arc::new(Self { config, twitter })
+        Arc::new(Self { config, oauth })
     }
+}
 
-    pub fn random_string(&self, len: usize) -> String {
-        let mut result = String::new();
-        let mut rng = rand::thread_rng();
+pub struct OauthState {
+    pub twitter: Option<oauth2::basic::BasicClient>,
+    wait: Mutex<HashMap<String, (PkceCodeVerifier, tokio::task::JoinHandle<()>)>>,
+}
 
-        for _ in 0..len {
-            let mut num: u32 = rng.gen_range(0..62);
-            if num < 10 {
-                num += 0x30;
-            } else if num < 36 {
-                num += 0x41 - 10;
-            } else {
-                num += 0x61 - 36;
-            }
+impl OauthState {
+    fn new(config: &Config) -> Self {
+        let mut twitter_auth = None;
+        if let Some(twitter) = &config.twitter {
+            let twitter = oauth2::basic::BasicClient::new(
+                ClientId::new(twitter.client_id.clone()),
+                Some(ClientSecret::new(twitter.client_secret.clone())),
+                AuthUrl::new("https://twitter.com/i/oauth2/authorize".to_string()).unwrap(),
+                Some(TokenUrl::new("https://api.twitter.com/2/oauth2/token".to_string()).unwrap()),
+            )
+            .set_auth_type(AuthType::BasicAuth)
+            .set_revocation_uri(
+                RevocationUrl::new("https://api.twitter.com/2/oauth2/revoke".to_string()).unwrap(),
+            )
+            .set_redirect_uri(
+                RedirectUrl::new(format!("https://{}/api/account/twitter_auth", &config.host))
+                    .unwrap(),
+            );
 
-            #[allow(clippy::transmute_int_to_char)]
-            result.push(unsafe { std::mem::transmute(num) });
+            twitter_auth = Some(twitter);
         }
 
-        result
-    }
-}
-
-pub struct TwitterState {
-    pub basic_auth: String,
-    wait: Mutex<HashMap<String, (String, tokio::task::JoinHandle<()>)>>,
-}
-
-impl TwitterState {
-    fn new(config: &TwitterConfig) -> Self {
-        let mut basic_auth = format!("{}:{}", config.client_id, config.client_secret);
-        basic_auth = base64::encode(&basic_auth);
-
         Self {
-            basic_auth,
+            twitter: twitter_auth,
             wait: Mutex::const_new(HashMap::new()),
         }
     }
@@ -58,8 +57,8 @@ impl TwitterState {
     pub async fn wait_add(
         &self,
         state: &Arc<SharedState>,
-        state_id: String,
-        code_verifier: String,
+        state_id: CsrfToken,
+        code_verifier: PkceCodeVerifier,
     ) {
         let state = Arc::clone(state);
         let state_id2 = state_id.clone();
@@ -67,23 +66,16 @@ impl TwitterState {
             let state_id = state_id2;
             tokio::time::sleep(Duration::from_secs(3 * 10)).await;
 
-            state
-                .twitter
-                .as_ref()
-                .unwrap()
-                .wait
-                .lock()
-                .await
-                .remove(&state_id);
+            state.oauth.wait.lock().await.remove(state_id.secret());
         });
 
         self.wait
             .lock()
             .await
-            .insert(state_id, (code_verifier, handle));
+            .insert(state_id.secret().clone(), (code_verifier, handle));
     }
 
-    pub async fn wait_get(&self, state_id: String) -> Option<String> {
+    pub async fn wait_get(&self, state_id: String) -> Option<PkceCodeVerifier> {
         let wait = self.wait.lock().await.remove(&state_id)?;
         wait.1.abort();
 
