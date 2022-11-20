@@ -40,8 +40,22 @@ fn status_500() -> (StatusCode, &'static str) {
     )
 }
 
-struct NoCache<T: IntoResponse>(T);
+pub struct ErrWrapper;
+impl IntoResponse for ErrWrapper {
+    fn into_response(self) -> response::Response {
+        NoCache(status_500()).into_response()
+    }
+}
+impl<T> From<T> for ErrWrapper
+where
+    T: std::error::Error,
+{
+    fn from(_: T) -> Self {
+        Self
+    }
+}
 
+struct NoCache<T: IntoResponse>(T);
 impl<T> IntoResponse for NoCache<T>
 where
     T: IntoResponse,

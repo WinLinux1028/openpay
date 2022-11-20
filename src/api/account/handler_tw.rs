@@ -8,7 +8,7 @@ use axum::{
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, Scope, TokenResponse};
 
 use crate::{
-    api::{account::OauthQuery, status_500, NoCache},
+    api::{account::OauthQuery, status_500, ErrWrapper, NoCache},
     state::SharedState,
 };
 
@@ -34,26 +34,22 @@ pub async fn twitter_login(extract::State(state): extract::State<Arc<SharedState
 pub async fn twitter_auth(
     extract::State(state): extract::State<Arc<SharedState>>,
     extract::Query(oauth): extract::Query<OauthQuery>,
-) -> response::Response {
+) -> Result<response::Response, ErrWrapper> {
     let twitter = match &state.oauth.twitter {
         Some(s) => s,
-        None => return (StatusCode::NOT_FOUND, "Twitter is disabled").into_response(),
+        None => return Ok((StatusCode::NOT_FOUND, "Twitter is disabled").into_response()),
     };
 
     let code_verifier = match state.oauth.wait_get(oauth.state).await {
         Some(s) => s,
-        None => return NoCache(status_500()).into_response(),
+        None => return Ok(NoCache(status_500()).into_response()),
     };
 
     let token = twitter
         .exchange_code(AuthorizationCode::new(oauth.code))
         .set_pkce_verifier(code_verifier)
         .request_async(oauth2::reqwest::async_http_client)
-        .await;
-    let token = match token {
-        Ok(o) => o,
-        Err(_) => return NoCache(status_500()).into_response(),
-    };
+        .await?;
     let token = token.access_token().secret();
 
     // ユーザーIDを取得する
@@ -63,23 +59,14 @@ pub async fn twitter_auth(
         .get("https://api.twitter.com/2/users/me")
         .header("Authorization", format!("Bearer {}", &token))
         .send()
-        .await;
-    let user_id = match user_id {
-        Ok(o) => o,
-        Err(_) => return NoCache(status_500()).into_response(),
-    };
-    let user_id = match user_id.text().await {
-        Ok(o) => o,
-        Err(_) => return NoCache(status_500()).into_response(),
-    };
+        .await?
+        .text()
+        .await?;
 
-    let user_id: TwitterData<TwitterID> = match serde_json::from_str(&user_id) {
-        Ok(o) => o,
-        Err(_) => return NoCache(status_500()).into_response(),
-    };
+    let user_id: TwitterData<TwitterID> = serde_json::from_str(&user_id)?;
     let user_id = user_id.data.id;
 
-    NoCache(user_id).into_response()
+    Ok(NoCache(user_id).into_response())
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
