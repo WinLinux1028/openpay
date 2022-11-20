@@ -12,17 +12,22 @@ use crate::{
     state::SharedState,
 };
 
-pub async fn twitter_login(extract::State(state): extract::State<Arc<SharedState>>) -> Response {
-    let twitter = match &state.oauth.twitter {
+pub async fn google_login(extract::State(state): extract::State<Arc<SharedState>>) -> Response {
+    let google = match &state.oauth.google {
         Some(s) => s,
-        None => return (StatusCode::NOT_FOUND, "Twitter is disabled").into_response(),
+        None => return (StatusCode::NOT_FOUND, "Google is disabled").into_response(),
     };
 
     let (code_challenge, code_verifier) = PkceCodeChallenge::new_random_sha256();
-    let (auth_url, state_id) = twitter
+    let (auth_url, state_id) = google
         .authorize_url(CsrfToken::new_random)
-        .add_scope(Scope::new("tweet.read".to_string()))
-        .add_scope(Scope::new("users.read".to_string()))
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/userinfo.email".to_string(),
+        ))
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/userinfo.profile".to_string(),
+        ))
+        .add_scope(Scope::new("openid".to_string()))
         .set_pkce_challenge(code_challenge)
         .url();
 
@@ -31,21 +36,20 @@ pub async fn twitter_login(extract::State(state): extract::State<Arc<SharedState
     (no_cache(), response::Redirect::temporary(auth_url.as_str())).into_response()
 }
 
-pub async fn twitter_auth(
+pub async fn google_auth(
     extract::State(state): extract::State<Arc<SharedState>>,
     extract::Query(oauth): extract::Query<OauthQuery>,
 ) -> response::Response {
-    let twitter = match &state.oauth.twitter {
+    let google = match &state.oauth.google {
         Some(s) => s,
-        None => return (StatusCode::NOT_FOUND, "Twitter is disabled").into_response(),
+        None => return (StatusCode::NOT_FOUND, "Google is disabled").into_response(),
     };
 
     let code_verifier = match state.oauth.wait_get(oauth.state).await {
         Some(s) => s,
         None => return internal_server_error(),
     };
-
-    let token = twitter
+    let token = google
         .exchange_code(AuthorizationCode::new(oauth.code))
         .set_pkce_verifier(code_verifier)
         .request_async(oauth2::reqwest::async_http_client)
@@ -60,7 +64,7 @@ pub async fn twitter_auth(
     let client = reqwest::Client::new();
 
     let user_id = client
-        .get("https://api.twitter.com/2/users/me")
+        .get("https://www.googleapis.com/oauth2/v1/userinfo")
         .header("Authorization", format!("Bearer {}", &token))
         .send()
         .await;
@@ -69,23 +73,31 @@ pub async fn twitter_auth(
         Err(_) => return internal_server_error(),
     };
 
-    let user_id: TwitterData<TwitterID> = match user_id.json().await {
+    let user_id: GoogleID = match user_id.json().await {
         Ok(o) => o,
         Err(_) => return internal_server_error(),
     };
-    let user_id = user_id.data.id;
+
+    if !user_id.verified_email {
+        return (
+            StatusCode::FORBIDDEN,
+            no_cache(),
+            "Verify your email address",
+        )
+            .into_response();
+    }
+    let user_id = user_id.id;
 
     (no_cache(), user_id).into_response()
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct TwitterData<T> {
-    data: T,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct TwitterID {
+struct GoogleID {
     id: String,
+    email: String,
+    verified_email: bool,
     name: String,
-    username: String,
+    given_name: String,
+    picture: String,
+    locale: String,
 }

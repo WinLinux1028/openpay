@@ -23,6 +23,7 @@ impl SharedState {
 
 pub struct OauthState {
     pub twitter: Option<oauth2::basic::BasicClient>,
+    pub google: Option<oauth2::basic::BasicClient>,
     wait: Mutex<HashMap<String, (PkceCodeVerifier, tokio::task::JoinHandle<()>)>>,
 }
 
@@ -48,8 +49,29 @@ impl OauthState {
             twitter_auth = Some(twitter);
         }
 
+        let mut google_auth = None;
+        if let Some(google) = &config.google {
+            let google = oauth2::basic::BasicClient::new(
+                ClientId::new(google.client_id.clone()),
+                Some(ClientSecret::new(google.client_secret.clone())),
+                AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string()).unwrap(),
+                Some(TokenUrl::new("https://oauth2.googleapis.com/token".to_string()).unwrap()),
+            )
+            .set_auth_type(AuthType::BasicAuth)
+            .set_revocation_uri(
+                RevocationUrl::new("https://oauth2.googleapis.com/revoke".to_string()).unwrap(),
+            )
+            .set_redirect_uri(
+                RedirectUrl::new(format!("https://{}/api/account/google_auth", &config.host))
+                    .unwrap(),
+            );
+
+            google_auth = Some(google);
+        }
+
         Self {
             twitter: twitter_auth,
+            google: google_auth,
             wait: Mutex::const_new(HashMap::new()),
         }
     }

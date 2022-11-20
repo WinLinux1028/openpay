@@ -4,5 +4,9 @@
     "twitter": {
         "client_id": "OAuth 2.0 Client ID",
         "client_secret": "OAuth 2.0 Client Secret"
+    },
+    "google": {
+        "client_id": "OAuth 2.0 Client ID",
+        "client_secret": "OAuth 2.0 Client Secret"
     }
 }

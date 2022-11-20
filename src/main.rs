@@ -43,11 +43,12 @@ async fn unusual_access() -> (StatusCode, &'static str) {
 pub struct Config {
     listen: std::net::SocketAddr,
     host: String,
-    twitter: Option<TwitterConfig>,
+    twitter: Option<OauthConfig>,
+    google: Option<OauthConfig>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct TwitterConfig {
+struct OauthConfig {
     client_id: String,
     client_secret: String,
 }
