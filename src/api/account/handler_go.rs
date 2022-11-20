@@ -72,12 +72,15 @@ pub async fn google_auth(
         Ok(o) => o,
         Err(_) => return internal_server_error(),
     };
-
-    let user_id: GoogleID = match user_id.json().await {
+    let user_id = match user_id.text().await {
         Ok(o) => o,
         Err(_) => return internal_server_error(),
     };
 
+    let user_id: GoogleID = match serde_json::from_str(&user_id) {
+        Ok(o) => o,
+        Err(_) => return internal_server_error(),
+    };
     if !user_id.verified_email {
         return (
             StatusCode::FORBIDDEN,
