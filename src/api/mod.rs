@@ -4,7 +4,7 @@ use crate::state::SharedState;
 
 use axum::{
     body,
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::{self, IntoResponse},
     routing::{MethodRouter, Router},
 };
@@ -15,7 +15,7 @@ where
     B: body::HttpBody + Send + 'static,
 {
     Router::new()
-        .fallback(not_found)
+        .fallback(|| async { status_404() })
         .nest("/account", account::router().await)
 }
 
@@ -23,28 +23,35 @@ pub fn method<B>() -> MethodRouter<Arc<SharedState>, B>
 where
     B: body::HttpBody + Send + 'static,
 {
-    MethodRouter::new().fallback(method_not_allowed)
+    MethodRouter::new().fallback(|| async { status_405() })
 }
 
-async fn not_found() -> (StatusCode, &'static str) {
+fn status_404() -> (StatusCode, &'static str) {
     (StatusCode::NOT_FOUND, "404 Not Found")
 }
-async fn method_not_allowed() -> (StatusCode, &'static str) {
+fn status_405() -> (StatusCode, &'static str) {
     (StatusCode::METHOD_NOT_ALLOWED, "405 Method Not Allowed")
 }
 
-fn internal_server_error() -> response::Response {
+fn status_500() -> (StatusCode, &'static str) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        no_cache(),
         "500 Internal Server Error",
     )
-        .into_response()
 }
 
-fn no_cache() -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    headers.insert("Cache-Control", "no-store".parse().unwrap());
+struct NoCache<T: IntoResponse>(T);
 
-    headers
+impl<T> IntoResponse for NoCache<T>
+where
+    T: IntoResponse,
+{
+    fn into_response(self) -> response::Response {
+        let mut response = self.0.into_response();
+        response
+            .headers_mut()
+            .insert("Cache-Control", "no-store".parse().unwrap());
+
+        response
+    }
 }

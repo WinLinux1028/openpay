@@ -8,7 +8,7 @@ use axum::{
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, Scope, TokenResponse};
 
 use crate::{
-    api::{account::OauthQuery, internal_server_error, no_cache},
+    api::{account::OauthQuery, status_500, NoCache},
     state::SharedState,
 };
 
@@ -33,7 +33,7 @@ pub async fn google_login(extract::State(state): extract::State<Arc<SharedState>
 
     state.oauth.wait_add(&state, state_id, code_verifier).await;
 
-    (no_cache(), response::Redirect::temporary(auth_url.as_str())).into_response()
+    NoCache(response::Redirect::temporary(auth_url.as_str())).into_response()
 }
 
 pub async fn google_auth(
@@ -47,7 +47,7 @@ pub async fn google_auth(
 
     let code_verifier = match state.oauth.wait_get(oauth.state).await {
         Some(s) => s,
-        None => return internal_server_error(),
+        None => return NoCache(status_500()).into_response(),
     };
     let token = google
         .exchange_code(AuthorizationCode::new(oauth.code))
@@ -56,7 +56,7 @@ pub async fn google_auth(
         .await;
     let token = match token {
         Ok(o) => o,
-        Err(_) => return internal_server_error(),
+        Err(_) => return NoCache(status_500()).into_response(),
     };
     let token = token.access_token().secret();
 
@@ -70,28 +70,23 @@ pub async fn google_auth(
         .await;
     let user_id = match user_id {
         Ok(o) => o,
-        Err(_) => return internal_server_error(),
+        Err(_) => return NoCache(status_500()).into_response(),
     };
     let user_id = match user_id.text().await {
         Ok(o) => o,
-        Err(_) => return internal_server_error(),
+        Err(_) => return NoCache(status_500()).into_response(),
     };
 
     let user_id: GoogleID = match serde_json::from_str(&user_id) {
         Ok(o) => o,
-        Err(_) => return internal_server_error(),
+        Err(_) => return NoCache(status_500()).into_response(),
     };
     if !user_id.verified_email {
-        return (
-            StatusCode::FORBIDDEN,
-            no_cache(),
-            "Verify your email address",
-        )
-            .into_response();
+        return NoCache((StatusCode::FORBIDDEN, "Verify your email address")).into_response();
     }
     let user_id = user_id.id;
 
-    (no_cache(), user_id).into_response()
+    NoCache(user_id).into_response()
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

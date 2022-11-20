@@ -8,7 +8,7 @@ use axum::{
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, Scope, TokenResponse};
 
 use crate::{
-    api::{account::OauthQuery, internal_server_error, no_cache},
+    api::{account::OauthQuery, status_500, NoCache},
     state::SharedState,
 };
 
@@ -28,7 +28,7 @@ pub async fn twitter_login(extract::State(state): extract::State<Arc<SharedState
 
     state.oauth.wait_add(&state, state_id, code_verifier).await;
 
-    (no_cache(), response::Redirect::temporary(auth_url.as_str())).into_response()
+    NoCache(response::Redirect::temporary(auth_url.as_str())).into_response()
 }
 
 pub async fn twitter_auth(
@@ -42,7 +42,7 @@ pub async fn twitter_auth(
 
     let code_verifier = match state.oauth.wait_get(oauth.state).await {
         Some(s) => s,
-        None => return internal_server_error(),
+        None => return NoCache(status_500()).into_response(),
     };
 
     let token = twitter
@@ -52,7 +52,7 @@ pub async fn twitter_auth(
         .await;
     let token = match token {
         Ok(o) => o,
-        Err(_) => return internal_server_error(),
+        Err(_) => return NoCache(status_500()).into_response(),
     };
     let token = token.access_token().secret();
 
@@ -66,20 +66,20 @@ pub async fn twitter_auth(
         .await;
     let user_id = match user_id {
         Ok(o) => o,
-        Err(_) => return internal_server_error(),
+        Err(_) => return NoCache(status_500()).into_response(),
     };
     let user_id = match user_id.text().await {
         Ok(o) => o,
-        Err(_) => return internal_server_error(),
+        Err(_) => return NoCache(status_500()).into_response(),
     };
 
     let user_id: TwitterData<TwitterID> = match serde_json::from_str(&user_id) {
         Ok(o) => o,
-        Err(_) => return internal_server_error(),
+        Err(_) => return NoCache(status_500()).into_response(),
     };
     let user_id = user_id.data.id;
 
-    (no_cache(), user_id).into_response()
+    NoCache(user_id).into_response()
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
