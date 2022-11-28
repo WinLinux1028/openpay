@@ -10,7 +10,7 @@ serde_json = "1"
 oauth2 = "4"
 
 [dependencies.axum]
-version = "0.6.0-rc"
+version = "0.6"
 features = ["headers", "multipart", "ws", "http2"]
 
 [dependencies.tokio]

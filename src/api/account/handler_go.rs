@@ -33,7 +33,7 @@ pub async fn google_login(extract::State(state): extract::State<Arc<SharedState>
 
     state.oauth.wait_add(&state, state_id, code_verifier).await;
 
-    NoCache(response::Redirect::temporary(auth_url.as_str())).into_response()
+    response::Redirect::temporary(auth_url.as_str()).no_cache()
 }
 
 pub async fn google_auth(
@@ -47,7 +47,7 @@ pub async fn google_auth(
 
     let code_verifier = match state.oauth.wait_get(oauth.state).await {
         Some(s) => s,
-        None => return Ok(NoCache(status_500()).into_response()),
+        None => return Ok(status_500().no_cache()),
     };
     let token = google
         .exchange_code(AuthorizationCode::new(oauth.code))
@@ -69,11 +69,11 @@ pub async fn google_auth(
 
     let user_id: GoogleID = serde_json::from_str(&user_id)?;
     if !user_id.verified_email {
-        return Ok(NoCache((StatusCode::FORBIDDEN, "Verify your email address")).into_response());
+        return Ok((StatusCode::FORBIDDEN, "Verify your email address").no_cache());
     }
     let user_id = user_id.id;
 
-    Ok(NoCache(user_id).into_response())
+    Ok(user_id.no_cache())
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

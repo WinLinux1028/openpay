@@ -28,7 +28,7 @@ pub async fn twitter_login(extract::State(state): extract::State<Arc<SharedState
 
     state.oauth.wait_add(&state, state_id, code_verifier).await;
 
-    NoCache(response::Redirect::temporary(auth_url.as_str())).into_response()
+    response::Redirect::temporary(auth_url.as_str()).no_cache()
 }
 
 pub async fn twitter_auth(
@@ -42,7 +42,7 @@ pub async fn twitter_auth(
 
     let code_verifier = match state.oauth.wait_get(oauth.state).await {
         Some(s) => s,
-        None => return Ok(NoCache(status_500()).into_response()),
+        None => return Ok(status_500().no_cache()),
     };
 
     let token = twitter
@@ -66,7 +66,7 @@ pub async fn twitter_auth(
     let user_id: TwitterData<TwitterID> = serde_json::from_str(&user_id)?;
     let user_id = user_id.data.id;
 
-    Ok(NoCache(user_id).into_response())
+    Ok(user_id.no_cache())
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
