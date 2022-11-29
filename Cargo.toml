@@ -25,3 +25,7 @@ features = ["derive", "unstable", "alloc", "rc"]
 version = "0.11"
 default-features=false
 features = ["rustls-tls-native-roots"]
+
+[dependencies.mimalloc]
+version = "0.1"
+default-features = false
