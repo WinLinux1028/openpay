@@ -46,6 +46,7 @@ async fn unusual_access() -> (StatusCode, &'static str) {
 pub struct Config {
     listen: std::net::SocketAddr,
     host: String,
+    mysql: String,
     twitter: Option<OauthConfig>,
     google: Option<OauthConfig>,
 }

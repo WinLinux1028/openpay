@@ -29,3 +29,7 @@ features = ["rustls-tls-native-roots"]
 [dependencies.mimalloc]
 version = "0.1"
 default-features = false
+
+[dependencies.sqlx]
+version = "0.6"
+features = [ "runtime-tokio-rustls", "mysql" ]

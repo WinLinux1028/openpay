@@ -2,6 +2,7 @@ use oauth2::{
     AuthType, AuthUrl, ClientId, ClientSecret, CsrfToken, PkceCodeVerifier, RedirectUrl,
     RevocationUrl, TokenUrl,
 };
+use sqlx::MySqlPool;
 use tokio::sync::Mutex;
 
 use crate::Config;
@@ -10,6 +11,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 pub struct SharedState {
     pub config: Config,
+    pub db: MySqlPool,
     pub oauth: OauthState,
 }
 
