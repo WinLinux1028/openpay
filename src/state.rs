@@ -17,9 +17,10 @@ pub struct SharedState {
 
 impl SharedState {
     pub async fn new(config: Config) -> Arc<Self> {
+        let db = MySqlPool::connect(&config.mysql).await.unwrap();
         let oauth = OauthState::new(&config);
 
-        Arc::new(Self { config, oauth })
+        Arc::new(Self { config, db, oauth })
     }
 }
 
