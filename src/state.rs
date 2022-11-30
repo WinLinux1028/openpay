@@ -1,3 +1,4 @@
+use axum::response;
 use oauth2::{
     AuthType, AuthUrl, ClientId, ClientSecret, CsrfToken, PkceCodeVerifier, RedirectUrl,
     RevocationUrl, TokenUrl,
@@ -11,16 +12,51 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 pub struct SharedState {
     pub config: Config,
-    pub db: MySqlPool,
+    pub db: MySqlWrapper,
     pub oauth: OauthState,
 }
 
 impl SharedState {
     pub async fn new(config: Config) -> Arc<Self> {
-        let db = MySqlPool::connect(&config.mysql).await.unwrap();
+        let db = MySqlWrapper::new(&config.mysql).await;
         let oauth = OauthState::new(&config);
 
         Arc::new(Self { config, db, oauth })
+    }
+}
+
+pub struct MySqlWrapper(MySqlPool);
+
+impl MySqlWrapper {
+    async fn new(url: &str) -> Self {
+        let mysql = Self(MySqlPool::connect(url).await.unwrap());
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS
+            account_session (
+                id TEXT CHARACTER SET utf8mb4 NOT NULL,
+                token TEXT CHARACTER SET utf8mb4 NOT NULL,
+                time BIGINT UNSIGNED NOT NULL,
+                PRIMARY KEY(id(384), token(384))
+            )",
+        )
+        .execute(&mysql.0)
+        .await
+        .unwrap();
+
+        mysql
+    }
+
+    async fn new_account_session(&self, id: &str) -> response::Response {
+        sqlx::query(
+            "INSERT INTO
+                account_session (
+                    id, token, time
+                )
+                VALUE (
+                    ?, ?, ?
+                )",
+        )
+        .bind(id);
     }
 }
 

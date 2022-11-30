@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
     extract,
     http::StatusCode,
-    response::{self, IntoResponse, Response},
+    response::{self, IntoResponse},
 };
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, Scope, TokenResponse};
 
@@ -12,7 +12,9 @@ use crate::{
     state::SharedState,
 };
 
-pub async fn twitter_login(extract::State(state): extract::State<Arc<SharedState>>) -> Response {
+pub async fn twitter_login(
+    extract::State(state): extract::State<Arc<SharedState>>,
+) -> response::Response {
     let twitter = match &state.oauth.twitter {
         Some(s) => s,
         None => return (StatusCode::NOT_FOUND, "Twitter is disabled").into_response(),
