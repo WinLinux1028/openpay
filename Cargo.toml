@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 serde_json = "1"
 oauth2 = "4"
+sha3 = "0.10"
+chrono = "0.4"
 
 [dependencies.axum]
 version = "0.6"
@@ -32,4 +34,8 @@ default-features = false
 
 [dependencies.sqlx]
 version = "0.6"
-features = [ "runtime-tokio-rustls", "mysql" ]
+features = ["runtime-tokio-rustls", "mysql"]
+
+[dependencies.rand]
+version = "0.8"
+features = ["nightly", "simd_support"]

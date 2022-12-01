@@ -1,8 +1,10 @@
 use axum::response;
+use chrono::Utc;
 use oauth2::{
     AuthType, AuthUrl, ClientId, ClientSecret, CsrfToken, PkceCodeVerifier, RedirectUrl,
     RevocationUrl, TokenUrl,
 };
+use sha3::{Digest, Sha3_512};
 use sqlx::MySqlPool;
 use tokio::sync::Mutex;
 
@@ -34,10 +36,10 @@ impl MySqlWrapper {
             "CREATE TABLE IF NOT EXISTS
             account_session (
                 id TEXT CHARACTER SET utf8mb4 NOT NULL,
-                token TEXT CHARACTER SET utf8mb4 NOT NULL,
+                token_hash BLOB NOT NULL,
                 time BIGINT UNSIGNED NOT NULL,
                 PRIMARY KEY(id(384), token(384))
-            )",
+            );",
         )
         .execute(&mysql.0)
         .await
@@ -46,17 +48,36 @@ impl MySqlWrapper {
         mysql
     }
 
-    async fn new_account_session(&self, id: &str) -> response::Response {
+    pub async fn new_account_session(&self, id: &str) -> Option<response::Response> {
+        let token = rand::thread_rng().gen_alphanumeric(86);
+
+        let mut token_hashed = Sha3_512::new();
+        token_hashed.update(&token);
+        let token_hashed = token_hashed.finalize();
+
+        let time = Utc::now().timestamp();
+        if time.is_negative() {
+            return None;
+        }
+        let time = time as u64;
+
         sqlx::query(
             "INSERT INTO
                 account_session (
-                    id, token, time
+                    id, token_hash, time
                 )
                 VALUE (
                     ?, ?, ?
-                )",
+                );",
         )
-        .bind(id);
+        .bind(id)
+        .bind(token_hashed.as_slice())
+        .bind(time)
+        .execute(&self.0)
+        .await
+        .ok()?;
+
+        None
     }
 }
 
@@ -143,3 +164,24 @@ impl OauthState {
         Some(wait.0)
     }
 }
+
+#[allow(clippy::transmute_int_to_char)]
+trait RandExt: rand::Rng {
+    fn gen_alphanumeric(&mut self, len: usize) -> String {
+        let mut result = String::with_capacity(len);
+
+        for _ in 0..len {
+            let charactor = self.gen_range(0..62);
+            if charactor < 10 {
+                result.push(unsafe { std::mem::transmute(0x30 + charactor) });
+            } else if charactor < 36 {
+                result.push(unsafe { std::mem::transmute(0x41 - 10 + charactor) });
+            } else {
+                result.push(unsafe { std::mem::transmute(0x61 - 36 + charactor) });
+            }
+        }
+
+        result
+    }
+}
+impl<T> RandExt for T where T: rand::Rng {}
